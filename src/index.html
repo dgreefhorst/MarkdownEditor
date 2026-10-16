@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data: file:; connect-src 'none'">
+<title>Markdown Editor</title>
+<style>
+:root{--bg:#f6f5f1;--surface:#fff;--ink:#1f2328;--muted:#6b7280;--line:#dcdad2;--accent:#1d5fd0;--accent-soft:#e6eefb;--code:#f0eee8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181a;--surface:#1f2123;--ink:#e6e6e3;--muted:#9a9a96;--line:#34363a;--accent:#6ea2ff;--accent-soft:#25324a;--code:#2a2c30;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17181a;--surface:#1f2123;--ink:#e6e6e3;--muted:#9a9a96;--line:#34363a;--accent:#6ea2ff;--accent-soft:#25324a;--code:#2a2c30;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+#appbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+#appbar h1{font-size:15px;margin:0 8px 0 0;font-weight:650}
+html.native #appbar{display:none}
+.tb{display:flex;flex-wrap:wrap;gap:2px;align-items:center;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+button,select{font:inherit;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:6px;padding:4px 8px;cursor:pointer;min-height:30px}
+button:hover{background:var(--accent-soft)}
+button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+.spacer{flex:1}
+select{border-color:var(--line);background:var(--surface)}
+main{flex:1;min-height:0;display:flex}
+.pane{flex:1;min-width:0;overflow:auto;background:var(--surface)}
+.pane+.pane{border-left:1px solid var(--line)}
+#editor{max-width:820px;margin:0 auto;padding:28px 24px 80px;outline:none;min-height:100%}
+#src{width:100%;height:100%;border:0;resize:none;padding:24px;background:var(--surface);color:var(--ink);font:13.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;outline:none}
+.hide{display:none}
+#editor h1,#editor h2,#editor h3,#editor h4{line-height:1.25;margin:1.4em 0 .5em}
+#editor h1{font-size:2em;border-bottom:1px solid var(--line);padding-bottom:.25em}
+#editor h2{font-size:1.5em}#editor h3{font-size:1.2em}
+#editor p{margin:.7em 0}
+#editor a{color:var(--accent)}
+#editor blockquote{margin:1em 0;padding:.2em 1em;border-left:4px solid var(--accent);color:var(--muted)}
+#editor code{background:var(--code);padding:.15em .35em;border-radius:4px;font:.9em ui-monospace,Menlo,Consolas,monospace}
+#editor pre{background:var(--code);padding:12px 14px;border-radius:8px;overflow-x:auto}
+#editor pre code{background:none;padding:0}
+#editor img{max-width:100%}
+#editor hr{border:0;border-top:1px solid var(--line);margin:1.5em 0}
+#editor table{border-collapse:collapse;margin:1em 0;max-width:100%}
+#editor th,#editor td{border:1px solid var(--line);padding:6px 10px;min-width:60px}
+#editor th{background:var(--code)}
+#editor ul,#editor ol{padding-left:1.6em}
+#editor li input[type=checkbox]{margin-right:.4em}
+footer{display:flex;gap:16px;padding:4px 12px;font-size:12px;color:var(--muted);background:var(--surface);border-top:1px solid var(--line)}
+#toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+#dlg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:10}
+#dlg.hide{display:none}
+#dlg form{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:min(340px,90vw);display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 32px rgba(0,0,0,.28)}
+#dlgLabel{font-size:13px;color:var(--muted)}
+#dlgInput{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
+#dlgActions{display:flex;justify-content:flex-end;gap:8px}
+#welcome{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+#welcome.hide{display:none}
+#welcome .wcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);width:min(560px,92vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+#welcome h2{margin:0;padding:20px 20px 2px;font-size:18px}
+#welcome .wsub{padding:0 20px 16px;color:var(--muted);font-size:13px}
+#welcome .wactions{display:flex;gap:8px;padding:0 20px 18px}
+#welcome .wactions button{flex:1;min-height:42px;border-color:var(--line);font-weight:600}
+#welcome .wlabel{padding:0 20px 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+#wList{list-style:none;margin:0;padding:0 12px 16px;overflow:auto}
+#wList .witem{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:8px 10px;border-radius:8px;text-align:left}
+#wList .wname{font-weight:600}
+#wList .wpath{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+@media (max-width:700px){main.split{flex-direction:column}.pane+.pane{border-left:0;border-top:1px solid var(--line)}#editor{padding:18px 14px 60px}}
+</style>
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/turndown.js"></script>
+<script>document.documentElement.classList.add(window.native?'native':'web')</script>
+</head>
+<body>
+<header id="appbar">
+  <h1>Markdown Editor</h1>
+  <button id="bNew" title="Nieuw document">Nieuw</button>
+  <button id="bOpen" title="Open .md bestand">Openen</button>
+  <button id="bSave" class="primary" title="Opslaan (Ctrl+S) — schrijft direct naar het geopende bestand">Opslaan</button>
+  <button id="bSaveAs" title="Opslaan als nieuw bestand">Opslaan als…</button>
+  <label id="autoWrap" class="hide" style="font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center" title="Wijzigingen automatisch naar het bestand schrijven"><input type="checkbox" id="auto">Auto-opslaan</label>
+  <button id="bCopy" title="Kopieer Markdown">Kopieer MD</button>
+  <span class="spacer"></span>
+  <div id="modes">
+    <button data-m="wysiwyg" class="on">Editor</button>
+    <button data-m="split">Gesplitst</button>
+    <button data-m="source">Markdown</button>
+  </div>
+  <button id="bTheme" title="Thema wisselen">◐</button>
+  <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" class="hide">
+</header>
+<div class="tb" id="tb">
+  <select id="blk" title="Blokstijl">
+    <option value="p">Alinea</option><option value="h1">Kop 1</option><option value="h2">Kop 2</option><option value="h3">Kop 3</option><option value="h4">Kop 4</option><option value="blockquote">Citaat</option><option value="pre">Codeblok</option>
+  </select>
+  <button id="bQuote" data-c="blockquote" title="Citaat">❝ Citaat</button>
+  <button id="bPre" data-c="pre" title="Codeblok">{ } Codeblok</button>
+  <span class="sep"></span>
+  <button data-c="bold" title="Vet (Ctrl+B)"><b>B</b></button>
+  <button data-c="italic" title="Cursief (Ctrl+I)"><i>I</i></button>
+  <button data-c="strikeThrough" title="Doorhalen"><s>S</s></button>
+  <button data-c="code" title="Inline code">&lt;/&gt;</button>
+  <span class="sep"></span>
+  <button data-c="insertUnorderedList" title="Opsomming">• Lijst</button>
+  <button data-c="insertOrderedList" title="Genummerde lijst">1. Lijst</button>
+  <button data-c="task" title="Takenlijst">☑ Taak</button>
+  <span class="sep"></span>
+  <button data-c="link" title="Link (Ctrl+K)">Link</button>
+  <button data-c="image" title="Afbeelding via URL">Afbeelding</button>
+  <button data-c="table" title="Tabel invoegen">Tabel</button>
+  <button data-c="insertHorizontalRule" title="Horizontale lijn">―</button>
+  <span class="sep"></span>
+  <button data-c="undo" title="Ongedaan (Ctrl+Z)">↶</button>
+  <button data-c="redo" title="Opnieuw (Ctrl+Y)">↷</button>
+  <button data-c="removeFormat" title="Opmaak wissen">Tx</button>
+</div>
+<main id="main">
+  <div class="pane" id="pe"><div id="editor" contenteditable="true" spellcheck="true"></div></div>
+  <div class="pane hide" id="ps"><textarea id="src" spellcheck="false" placeholder="Markdown…"></textarea></div>
+</main>
+<footer><span id="fn">document.md</span><span id="stat">0 woorden</span><span id="saved"></span></footer>
+<div id="toast"></div>
+<div id="dlg" class="hide"><form id="dlgForm">
+  <span id="dlgLabel"></span>
+  <input id="dlgInput" type="text" autocomplete="off" spellcheck="false">
+  <div id="dlgActions">
+    <button type="button" id="dlgCancel">Annuleren</button>
+    <button type="submit" id="dlgOk" class="primary">OK</button>
+  </div>
+</form></div>
+<div id="welcome" class="hide">
+  <div class="wcard">
+    <h2>Markdown Editor</h2>
+    <div class="wsub">Begin met een nieuw document of open een bestaand bestand.</div>
+    <div class="wactions">
+      <button id="wNew" class="primary" type="button">Nieuw bestand</button>
+      <button id="wOpen" type="button">Bestand openen…</button>
+    </div>
+    <div id="wRecent">
+      <div class="wlabel">Recente bestanden</div>
+      <ul id="wList"></ul>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const isApp=!!window.native;
+const ed=$('#editor'), src=$('#src'), main=$('#main');
+marked.setOptions({gfm:true,breaks:false});
+const td=new TurndownService({headingStyle:'atx',codeBlockStyle:'fenced',bulletListMarker:'-',emDelimiter:'*',strongDelimiter:'**',hr:'---'});
+td.addRule('strike',{filter:['del','s','strike'],replacement:c=>'~~'+c+'~~'});
+td.addRule('task',{filter:n=>n.nodeName==='INPUT'&&n.type==='checkbox',replacement:(c,n)=>n.checked?'[x] ':'[ ] '});
+td.addRule('table',{filter:'table',replacement:(c,n)=>{
+  const rows=[...n.rows].map(r=>[...r.cells].map(x=>td.turndown(x.innerHTML).replace(/\n+/g,' ').replace(/\|/g,'\\|').trim()));
+  if(!rows.length)return '';
+  const w=Math.max(...rows.map(r=>r.length));
+  const pad=r=>{while(r.length<w)r.push('');return '| '+r.join(' | ')+' |'};
+  const out=[pad(rows[0]),'| '+Array(w).fill('---').join(' | ')+' |',...rows.slice(1).map(pad)];
+  return '\n\n'+out.join('\n')+'\n\n';}});
+td.keep([]);
+
+function clean(html){
+  const t=document.createElement('template'); t.innerHTML=html;
+  t.content.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(e=>e.remove());
+  t.content.querySelectorAll('*').forEach(e=>{[...e.attributes].forEach(a=>{
+    const n=a.name.toLowerCase();
+    if(n.startsWith('on')||(['href','src'].includes(n)&&/^\s*javascript:/i.test(a.value)))e.removeAttribute(a.name);
+    else if(!['href','src','alt','title','type','checked','colspan','rowspan','start','class'].includes(n))e.removeAttribute(a.name);
+  });});
+  return t.innerHTML;
+}
+const toHTML=md=>clean(marked.parse(md||''));
+// Chromium zet in een <pre> een <br> per regeleinde, plus één extra voor de weergave; turndown laat <br> vallen
+function fixPre(pre){
+  let txt='';
+  (function walk(n){for(const c of n.childNodes){if(c.nodeName==='BR')txt+='\n';else if(c.nodeType===3)txt+=c.nodeValue;else walk(c)}})(pre);
+  if(pre.lastChild&&pre.lastChild.nodeName==='BR')txt=txt.replace(/\n$/,'');
+  const code=document.createElement('code');code.textContent=txt;
+  pre.innerHTML='';pre.appendChild(code);
+}
+const toMD=()=>{const d=document.createElement('div');d.innerHTML=ed.innerHTML;d.querySelectorAll('pre').forEach(fixPre);return td.turndown(d.innerHTML).trim()+'\n'};
+
+let mode='wysiwyg', lock=false, timer=null, blkValue='p';
+function stats(){const t=src.value.replace(/[#>*_`~\-\[\]()|!]/g,' ').trim();$('#stat').textContent=(t?t.split(/\s+/).length:0)+' woorden · '+src.value.length+' tekens'}
+function persist(){dirty=true;label();clearTimeout(timer);timer=setTimeout(()=>{try{localStorage.setItem('md-editor-doc',src.value)}catch(e){}
+  if(handle&&dirty&&autoSave)writeHandle().catch(()=>{$('#saved').textContent='Auto-opslaan mislukt'});},500)}
+const pe=$('#pe');let raf=0,syncing=false;
+// Editor -> Markdown: elke DOM-wijziging (typen, knoppen, undo/redo, plakken, vinkjes) werkt de bron direct bij
+const mo=new MutationObserver(()=>{if(!lock){cancelAnimationFrame(raf);raf=requestAnimationFrame(fromEditor)}});
+mo.observe(ed,{childList:true,subtree:true,characterData:true,attributes:true});
+function fromEditor(){
+  if(lock)return;lock=true;
+  const md=toMD();
+  if(md!==src.value){
+    const st=src.scrollTop,a=src.selectionStart,b=src.selectionEnd,f=document.activeElement===src;
+    src.value=md;src.scrollTop=st;
+    if(f)src.setSelectionRange(Math.min(a,md.length),Math.min(b,md.length));
+  }
+  lock=false;stats();persist();
+}
+// Markdown -> editor: bij elke toetsaanslag opnieuw renderen, scrollpositie behouden
+function renderEditor(md){lock=true;const st=pe.scrollTop;ed.innerHTML=toHTML(md);mo.takeRecords();pe.scrollTop=st;lock=false}
+function fromSource(){renderEditor(src.value);stats();persist()}
+function setMD(md){src.value=md;renderEditor(md);stats();persist()}
+src.addEventListener('input',fromSource);
+// Scroll synchroon houden in gesplitste weergave
+function link(a,b){a.addEventListener('scroll',()=>{if(mode!=='split'||syncing)return;syncing=true;const r=a.scrollTop/Math.max(1,a.scrollHeight-a.clientHeight);b.scrollTop=r*(b.scrollHeight-b.clientHeight);requestAnimationFrame(()=>syncing=false)})}
+link(pe,src);link(src,pe);
+
+function setMode(m){
+  mode=m;
+  $('#pe').classList.toggle('hide',m==='source');
+  $('#ps').classList.toggle('hide',m==='wysiwyg');
+  main.classList.toggle('split',m==='split');
+  document.querySelectorAll('#appbar #modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('#tb').style.visibility=m==='source'?'hidden':'visible';
+  if(m==='source')src.focus(); else ed.focus();
+  label();
+}
+
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1800)}
+// Herstelt ongeldige nesting die execCommand soms maakt (bijv. <p><ul>…) en losse tekst buiten een blok
+function normalizeBlocks(){
+  ed.querySelectorAll('p').forEach(p=>{if(p.querySelector('ul,ol,blockquote,pre,h1,h2,h3,h4,h5,h6,table,div,p'))p.replaceWith(...p.childNodes)});
+  [...ed.childNodes].forEach(n=>{if(n.nodeType===3&&n.nodeValue.trim()){const p=document.createElement('p');n.replaceWith(p);p.appendChild(n)}});
+}
+function currentBlock(){
+  const s=getSelection();if(!s.anchorNode||!ed.contains(s.anchorNode))return 'p';
+  let n=s.anchorNode.nodeType===3?s.anchorNode.parentElement:s.anchorNode;
+  while(n&&n!==ed&&!/^(P|H[1-6]|BLOCKQUOTE|PRE|LI|DIV)$/.test(n.nodeName))n=n.parentElement;
+  const t=n&&n!==ed?n.nodeName.toLowerCase():'p';
+  return ['h1','h2','h3','h4','blockquote','pre'].includes(t)?t:'p';
+}
+function exec(c,v){ed.focus();document.execCommand(c,false,v);normalizeBlocks();fromEditor();sync()}
+function selHTML(){const s=getSelection();if(!s.rangeCount)return '';const d=document.createElement('div');d.appendChild(s.getRangeAt(0).cloneContents());return d.innerHTML}
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function insertHTML(h){exec('insertHTML',h)}
+function savedRange(){const s=getSelection();return s.rangeCount?s.getRangeAt(0).cloneRange():null}
+function restoreRange(r){if(!r)return;ed.focus();const s=getSelection();s.removeAllRanges();s.addRange(r)}
+// Maakt van een blok de inhoud zonder blok- of inline-opmaak (links blijven staan)
+function plainInline(el){
+  const d=el.cloneNode(true);
+  d.querySelectorAll('p,div,li,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre').forEach(e=>e.replaceWith(...e.childNodes));
+  d.querySelectorAll('b,strong,i,em,u,s,strike,del,code,span,mark,sub,sup,font,small,big,kbd,samp,var').forEach(e=>e.replaceWith(...e.childNodes));
+  return d.innerHTML;
+}
+function caretAtText(el,offset){
+  const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);let acc=0,n;
+  while((n=w.nextNode())){const len=n.nodeValue.length;
+    if(acc+len>=offset){const r=document.createRange();r.setStart(n,offset-acc);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);return}
+    acc+=len}
+  const r=document.createRange();r.selectNodeContents(el);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);
+}
+function caretOffsetIn(blk,node,off){try{const r=document.createRange();r.selectNodeContents(blk);r.setEnd(node,off);return r.toString().length}catch(e){return -1}}
+// Electron ondersteunt window.prompt() niet; daarom een eigen dialoog
+function askPrompt(message,value){
+  return new Promise(resolve=>{
+    const dlg=$('#dlg'),input=$('#dlgInput'),form=$('#dlgForm');
+    $('#dlgLabel').textContent=message;input.value=value==null?'':value;
+    dlg.classList.remove('hide');input.focus();input.select();
+    const done=v=>{dlg.classList.add('hide');form.onsubmit=null;$('#dlgCancel').onclick=null;resolve(v)};
+    form.onsubmit=e=>{e.preventDefault();done(input.value)};
+    $('#dlgCancel').onclick=()=>done(null);
+    input.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();done(null)}};
+  });
+}
+
+async function action(c){
+  ed.focus();
+  switch(c){
+    case 'code':{const s=getSelection().toString();
+      const p=getSelection().anchorNode&&getSelection().anchorNode.parentElement;
+      if(p&&p.closest('code')&&!p.closest('pre')){const cd=p.closest('code');cd.replaceWith(document.createTextNode(cd.textContent));fromEditor();}
+      else insertHTML('<code>'+(esc(s)||'code')+'</code>&nbsp;');break}
+    case 'task':insertHTML('<ul><li><input type="checkbox">&nbsp;'+(esc(getSelection().toString())||'Taak')+'</li></ul>');break;
+    case 'link':{const r=savedRange();const u=await askPrompt('URL van de link:','https://');restoreRange(r);
+      if(u){getSelection().isCollapsed?insertHTML('<a href="'+esc(u)+'">'+esc(u)+'</a>'):exec('createLink',u)}break}
+    case 'image':{const r=savedRange();const u=await askPrompt('URL van de afbeelding:','https://');
+      if(!u){restoreRange(r);break}
+      const a=await askPrompt('Alternatieve tekst:','');restoreRange(r);
+      insertHTML('<img src="'+esc(u)+'" alt="'+esc(a||'')+'">');break}
+    case 'table':{const r=savedRange();const rs=await askPrompt('Aantal rijen (excl. kop):','2'),ks=await askPrompt('Aantal kolommen:','3');restoreRange(r);
+      const rw=parseInt(rs,10),k=parseInt(ks,10);
+      if(rw>0&&k>0){let h='<table><thead><tr>'+Array.from({length:k},(_,i)=>'<th>Kop '+(i+1)+'</th>').join('')+'</tr></thead><tbody>';
+        for(let i=0;i<rw;i++)h+='<tr>'+'<td>&nbsp;</td>'.repeat(k)+'</tr>';insertHTML(h+'</tbody></table><p><br></p>')}break}
+    case 'blockquote':case 'pre':exec('formatBlock',currentBlock()===c?'p':c);break;
+    case 'removeFormat':{
+      const s=getSelection();
+      if(s.rangeCount&&!s.isCollapsed){exec('removeFormat');break}
+      let n=s.anchorNode;n=n&&n.nodeType===3?n.parentElement:n;
+      if(!n||!ed.contains(n))break;
+      const li=n.closest('li');
+      const blk=li||n.closest('h1,h2,h3,h4,h5,h6,blockquote,pre')||n.closest('p,div');
+      if(!blk||blk===ed)break;
+      const off=caretOffsetIn(blk,s.anchorNode,s.anchorOffset);
+      const p=document.createElement('p');
+      p.innerHTML=plainInline(blk)||'<br>';
+      if(li){
+        const list=li.parentElement,tail=[];
+        let x=li.nextElementSibling;while(x){tail.push(x);x=x.nextElementSibling}
+        li.remove();
+        if(tail.length){const rest=list.cloneNode(false);tail.forEach(y=>rest.appendChild(y));list.after(rest)}
+        if(list.children.length)list.after(p);else list.replaceWith(p);
+      }else blk.replaceWith(p);
+      normalizeBlocks();
+      caretAtText(p,off<0?Infinity:off);
+      fromEditor();sync();break}
+    default:exec(c);
+  }
+}
+$('#tb').addEventListener('mousedown',e=>{if(e.target.closest('button'))e.preventDefault()});
+$('#tb').addEventListener('click',e=>{const b=e.target.closest('button');if(b)action(b.dataset.c)});
+$('#blk').addEventListener('change',e=>{const v=e.target.value;exec('formatBlock',v==='p'?'p':v);});
+
+function sync(){
+  const s=getSelection();if(!s.anchorNode||!ed.contains(s.anchorNode))return;
+  const v=currentBlock();
+  $('#blk').value=v;
+  $('#bQuote').classList.toggle('on',v==='blockquote');
+  $('#bPre').classList.toggle('on',v==='pre');
+  if(v!==blkValue){blkValue=v;pushState()}
+}
+document.addEventListener('selectionchange',sync);
+
+// Markdown-sneltoetsen tijdens typen: "# ", "- ", "1. ", "> ", "```", "---"
+ed.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();action('link');return}
+  if(e.key!==' '&&e.key!=='Enter')return;
+  const s=getSelection();if(!s.isCollapsed||!s.anchorNode||s.anchorNode.nodeType!==3)return;
+  const blk=s.anchorNode.parentElement.closest('p,div');if(!blk||blk===ed||blk.closest('li,pre'))return;
+  const txt=blk.textContent;
+  if(e.key===' '){
+    const m=txt.match(/^(#{1,4}|-|\*|\d+\.|>|\[\])$/);if(!m)return;
+    e.preventDefault();blk.textContent='';
+    const k=m[1];
+    if(k[0]==='#')exec('formatBlock','h'+k.length);
+    else if(k==='-'||k==='*')exec('insertUnorderedList');
+    else if(k==='>')exec('formatBlock','blockquote');
+    else if(k==='[]')action('task');
+    else exec('insertOrderedList');
+  }else if(txt==='---'){e.preventDefault();blk.textContent='';exec('insertHorizontalRule')}
+  else if(txt==='```'){e.preventDefault();blk.textContent='';exec('formatBlock','pre')}
+});
+ed.addEventListener('paste',e=>{
+  const h=e.clipboardData.getData('text/html'),t=e.clipboardData.getData('text/plain');
+  e.preventDefault();
+  if(h)insertHTML(clean(h)); else if(t)insertHTML(toHTML(t));
+});
+ed.addEventListener('click',e=>{
+  if(e.target.matches('input[type=checkbox]')){if(e.target.checked)e.target.setAttribute('checked','');else e.target.removeAttribute('checked');fromEditor()}
+  const a=e.target.closest('a');if(a&&(e.ctrlKey||e.metaKey)){window.open(a.href,'_blank','noopener')}
+});
+
+// Bestanden
+let fname='document.md';
+const ftypes=[{description:'Markdown',accept:{'text/markdown':['.md','.markdown'],'text/plain':['.txt']}}];
+let handle=null,dirty=false,autoSave=false;
+function label(){
+  $('#fn').textContent=(handle?'🔗 ':'')+fname+(dirty?' •':'');
+  document.title=fname+(dirty?' — bewerkt':'');
+  if(isApp){pushState();return}
+  $('#autoWrap').classList.toggle('hide',!handle);
+  $('#auto').checked=autoSave;
+}
+function pushState(){if(isApp)native.state({path:(handle&&handle.path)||'',dirty:dirty,mode:mode,autosave:autoSave,block:blkValue})}
+function loadNative(r){handle={native:true,path:r.path};fname=r.name;setMD(r.content);dirty=false;label();toast('Geopend: '+r.name)}
+async function openPicker(){
+  if(isApp){const r=await native.open();if(r)loadNative(r);return}
+  try{
+    const [h]=await showOpenFilePicker({types:ftypes,multiple:false});
+    const f=await h.getFile(),text=await f.text();
+    handle=h;fname=f.name;setMD(text);dirty=false;label();
+    toast('Geopend: '+f.name+' — opslaan schrijft direct naar dit bestand');
+  }catch(e){if(e&&e.name==='AbortError')return;toast('Directe bestandstoegang niet beschikbaar; gewone upload gebruikt');$('#file').click()}
+}
+window.addEventListener('beforeunload',e=>{if(dirty&&handle){e.preventDefault();e.returnValue=''}});
+function newDoc(){handle=null;setMD('');fname='document.md';dirty=false;label();ed.focus()}
+async function copyMD(){try{await navigator.clipboard.writeText(src.value);toast('Markdown gekopieerd')}catch(e){src.select();document.execCommand('copy');toast('Markdown gekopieerd')}}
+async function writeHandle(){
+  if(handle.native)await native.write(handle.path,src.value);
+  else{const w=await handle.createWritable();await w.write(src.value);await w.close()}
+  dirty=false;label();$('#saved').textContent='Opgeslagen om '+new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+async function save(){
+  if(handle){
+    try{await writeHandle();toast('Opgeslagen in '+fname);return}
+    catch(e){if(e&&e.name==='AbortError')return;toast('Schrijven mislukt — kies een nieuwe locatie');handle=null;label()}
+  }
+  return saveAs();
+}
+async function saveAs(){
+  if(isApp){const r=await native.saveAs(fname,src.value);if(r){handle={native:true,path:r.path};fname=r.name;dirty=false;label();toast('Opgeslagen als '+r.name)}return}
+  if(window.showSaveFilePicker){
+    try{
+      const h=await showSaveFilePicker({suggestedName:fname,types:ftypes});
+      handle=h;fname=h.name;await writeHandle();toast('Opgeslagen als '+fname);return;
+    }catch(e){if(e&&e.name==='AbortError')return}
+  }
+  return dlSave();
+}
+async function dlSave(){
+  const name=prompt('Bestandsnaam:',fname);if(!name)return;
+  fname=/\.(md|markdown)$/i.test(name)?name:name+'.md';
+  try{
+    const d=window.claude&&await claude.use('downloads');
+    if(d){await d.save({filename:fname,data:src.value});toast('Opgeslagen als '+fname);return}
+  }catch(e){if(e&&e.code&&/declin|cancel|denied/i.test(e.code+e.message)){return}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([src.value],{type:'text/markdown'}));a.download=fname;document.body.appendChild(a);a.click();a.remove();
+  toast('Opgeslagen als '+fname);
+}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();save()}});
+
+// Thema
+function toggleTheme(){
+  const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme=dark?'light':'dark';
+}
+
+// Opstartdialoog met recente bestanden
+function hideStart(){const w=$('#welcome');if(w)w.classList.add('hide')}
+async function showStart(){
+  const w=$('#welcome');if(!w)return;
+  let items=[];try{items=await native.recent()}catch(e){}
+  const list=$('#wList');list.innerHTML='';
+  $('#wRecent').style.display=items.length?'':'none';
+  items.forEach(it=>{
+    const li=document.createElement('li');
+    const b=document.createElement('button');b.type='button';b.className='witem';
+    const nm=document.createElement('span');nm.className='wname';nm.textContent=it.name;
+    const pt=document.createElement('span');pt.className='wpath';pt.textContent=it.path;
+    b.append(nm,pt);
+    b.addEventListener('click',async()=>{const r=await native.openPath(it.path);if(r){hideStart();loadNative(r)}else{toast('Bestand niet gevonden');showStart()}});
+    li.appendChild(b);list.appendChild(li);
+  });
+  w.classList.remove('hide');
+  (list.querySelector('button')||$('#wNew')).focus();
+}
+$('#wNew').addEventListener('click',()=>{hideStart();newDoc()});
+$('#wOpen').addEventListener('click',()=>{hideStart();openPicker()});
+$('#welcome').addEventListener('click',e=>{if(e.target===$('#welcome'))hideStart()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#welcome').classList.contains('hide')&&$('#dlg').classList.contains('hide'))hideStart()});
+
+// Start
+const demo=`# Welkom bij de Markdown Editor
+
+Schrijf **vet**, *cursief* of ~~doorgehaald~~ in de editor, of wissel naar de *Markdown*-weergave.
+
+## Sneltoetsen tijdens typen
+
+- Typ \`# \` voor een kop, \`- \` voor een lijst, \`1. \` voor een genummerde lijst
+- Typ \`> \` voor een citaat, \`---\` voor een lijn
+- Ctrl+K voor een link, Ctrl+S om op te slaan
+
+- [x] Editor gebouwd
+- [ ] Eigen document schrijven
+
+| Kolom A | Kolom B |
+| --- | --- |
+| Een | Twee |
+
+> Alles wat je typt wordt direct als Markdown bijgehouden.
+`;
+let init=demo;try{init=localStorage.getItem('md-editor-doc')||demo}catch(e){}
+setMD(init);dirty=false;label();
+if(isApp){
+  const guard=()=>!dirty||confirm('Er zijn niet-opgeslagen wijzigingen. Toch doorgaan?');
+  native.onOpen(r=>{if(guard())loadNative(r)});
+  native.onMenu(c=>{
+    if(c==='start'){showStart();return}
+    if(c==='new'){newDoc();return}
+    if(c==='open'){if(guard())openPicker();return}
+    if(c==='save'){save();return}
+    if(c==='saveas'){saveAs();return}
+    if(c==='copy-md'){copyMD();return}
+    if(c==='theme'){toggleTheme();return}
+    if(c==='autosave'){autoSave=!autoSave;label();return}
+    if(c&&c.indexOf('mode:')===0)setMode(c.slice(5));
+    else if(c&&c.indexOf('fmt:')===0){if(document.activeElement!==src)action(c.slice(4));return}
+    else if(c&&c.indexOf('block:')===0){if(document.activeElement!==src){const v=c.slice(6);exec('formatBlock',v==='p'?'p':v)}return}
+  });
+  addEventListener('dragover',e=>e.preventDefault());
+  addEventListener('drop',async e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(!f)return;const r=await native.openPath(native.pathFor(f));if(r&&guard())loadNative(r)});
+}else{
+  const fsa='showOpenFilePicker' in window;
+  $('#bOpen').onclick=()=>fsa?openPicker():$('#file').click();
+  $('#bNew').onclick=newDoc;
+  $('#bCopy').onclick=copyMD;
+  $('#bSave').onclick=save;
+  $('#bSaveAs').onclick=saveAs;
+  $('#bTheme').onclick=toggleTheme;
+  $('#modes').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)});
+  $('#auto').addEventListener('change',e=>{autoSave=e.target.checked;label()});
+  $('#file').addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;fname=f.name.match(/\.(md|markdown)$/i)?f.name:f.name.replace(/\.[^.]*$/,'')+'.md';
+    const r=new FileReader();r.onload=()=>{handle=null;setMD(String(r.result));dirty=false;label();toast('Geopend: '+f.name)};r.readAsText(f);e.target.value='';
+  });
+}
+if(innerWidth>900)setMode('split');
+})();
+</script>
+</body>
+</html>

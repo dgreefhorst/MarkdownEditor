@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output (electron-builder)
+dist/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.*
+.commandcode/taste/taste.md

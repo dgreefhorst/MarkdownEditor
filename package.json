@@ -1,0 +1,58 @@
+{
+  "name": "markdown-editor",
+  "version": "1.0.0",
+  "description": "WYSIWYG Markdown editor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac",
+    "dist:arm64": "electron-builder --mac --arm64",
+    "dist:x64": "electron-builder --mac --x64"
+  },
+  "keywords": [],
+  "author": "Danny Greefhorst <danny.greefhorst@gmail.com>",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "marked": "^12.0.0",
+    "turndown": "^7.1.2"
+  },
+  "productName": "Markdown Editor",
+  "private": true,
+  "build": {
+    "appId": "nl.markdowneditor.app",
+    "productName": "Markdown Editor",
+    "copyright": "Copyright © 2026 Danny Greefhorst (danny.greefhorst@gmail.com)",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "afterPack": "build/adhoc-sign.js",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown-document",
+        "description": "Markdown-document",
+        "role": "Editor"
+      }
+    ]
+  }
+}
