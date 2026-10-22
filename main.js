@@ -2,7 +2,8 @@ const { app, BrowserWindow, Menu, MenuItem, dialog, ipcMain, shell } = require('
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const FILTERS = [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'txt'] }];
+const FILTERS = [{ name: 'Markdown & Mermaid', extensions: ['md', 'markdown', 'mdown', 'mmd', 'txt'] }];
+const DOC_RE = /\.(md|markdown|mdown|mmd|txt)$/i;
 const COPYRIGHT = 'Copyright © 2026 Danny Greefhorst (danny.greefhorst@gmail.com)';
 let win = null, ready = false, pendingPath = null;
 
@@ -37,12 +38,12 @@ function openPath(p) {
   } else pendingPath = p;
 }
 
-const argPath = process.argv.slice(app.isPackaged ? 1 : 2).find(a => /\.(md|markdown|mdown|txt)$/i.test(a));
+const argPath = process.argv.slice(app.isPackaged ? 1 : 2).find(a => DOC_RE.test(a));
 if (argPath) pendingPath = path.resolve(argPath);
 
 if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', (_e, argv) => {
-  const p = argv.slice(1).find(a => /\.(md|markdown|mdown|txt)$/i.test(a));
+  const p = argv.slice(1).find(a => DOC_RE.test(a));
   if (p) openPath(path.resolve(p)); else if (win) win.focus();
 });
 app.on('open-file', (e, p) => { e.preventDefault(); openPath(p); });

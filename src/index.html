@@ -54,6 +54,13 @@ footer{display:flex;gap:16px;padding:4px 12px;font-size:12px;color:var(--muted);
 #dlgLabel{font-size:13px;color:var(--muted)}
 #dlgInput{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
 #dlgActions{display:flex;justify-content:flex-end;gap:8px}
+#dlgArea{display:none}
+#dlgArea.on{display:block;width:min(620px,84vw);min-height:240px;resize:vertical;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
+#editor .mmd{margin:1.1em 0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:auto;text-align:center}
+#editor .mmd[contenteditable=false]{cursor:zoom-in}
+#editor .mmd svg{max-width:100%;height:auto}
+#editor .mmd-err{color:#b3261e;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;text-align:left;white-space:pre-wrap;padding:8px}
+#editor .mmd-hint{color:var(--muted);font-size:13px;padding:14px}
 #welcome{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
 #welcome.hide{display:none}
 #welcome .wcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);width:min(560px,92vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
@@ -70,6 +77,7 @@ footer{display:flex;gap:16px;padding:4px 12px;font-size:12px;color:var(--muted);
 </style>
 <script src="vendor/marked.min.js"></script>
 <script src="vendor/turndown.js"></script>
+<script src="vendor/mermaid.min.js"></script>
 <script>document.documentElement.classList.add(window.native?'native':'web')</script>
 </head>
 <body>
@@ -88,7 +96,7 @@ footer{display:flex;gap:16px;padding:4px 12px;font-size:12px;color:var(--muted);
     <button data-m="source">Markdown</button>
   </div>
   <button id="bTheme" title="Thema wisselen">◐</button>
-  <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" class="hide">
+  <input type="file" id="file" accept=".md,.markdown,.mmd,.txt,text/markdown,text/plain" class="hide">
 </header>
 <div class="tb" id="tb">
   <select id="blk" title="Blokstijl">
@@ -124,6 +132,7 @@ footer{display:flex;gap:16px;padding:4px 12px;font-size:12px;color:var(--muted);
 <div id="dlg" class="hide"><form id="dlgForm">
   <span id="dlgLabel"></span>
   <input id="dlgInput" type="text" autocomplete="off" spellcheck="false">
+  <textarea id="dlgArea" spellcheck="false"></textarea>
   <div id="dlgActions">
     <button type="button" id="dlgCancel">Annuleren</button>
     <button type="submit" id="dlgOk" class="primary">OK</button>
@@ -147,8 +156,13 @@ footer{display:flex;gap:16px;padding:4px 12px;font-size:12px;color:var(--muted);
 (function(){
 const $=s=>document.querySelector(s);
 const isApp=!!window.native;
+const hasMermaid=!!window.mermaid;
+let docKind='md';
 const ed=$('#editor'), src=$('#src'), main=$('#main');
 marked.setOptions({gfm:true,breaks:false});
+const isDark=()=>{const r=document.documentElement;return r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches};
+const mermaidInit=()=>{if(hasMermaid)mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:isDark()?'dark':'default'})};
+mermaidInit();
 const td=new TurndownService({headingStyle:'atx',codeBlockStyle:'fenced',bulletListMarker:'-',emDelimiter:'*',strongDelimiter:'**',hr:'---'});
 td.addRule('strike',{filter:['del','s','strike'],replacement:c=>'~~'+c+'~~'});
 td.addRule('task',{filter:n=>n.nodeName==='INPUT'&&n.type==='checkbox',replacement:(c,n)=>n.checked?'[x] ':'[ ] '});
@@ -159,6 +173,8 @@ td.addRule('table',{filter:'table',replacement:(c,n)=>{
   const pad=r=>{while(r.length<w)r.push('');return '| '+r.join(' | ')+' |'};
   const out=[pad(rows[0]),'| '+Array(w).fill('---').join(' | ')+' |',...rows.slice(1).map(pad)];
   return '\n\n'+out.join('\n')+'\n\n';}});
+td.addRule('mermaid',{filter:n=>n.nodeName==='DIV'&&n.classList&&n.classList.contains('mmd'),
+  replacement:(c,n)=>'\n\n```mermaid\n'+(n.getAttribute('data-src')||'').replace(/\s+$/,'')+'\n```\n\n'});
 td.keep([]);
 
 function clean(html){
@@ -171,7 +187,22 @@ function clean(html){
   });});
   return t.innerHTML;
 }
-const toHTML=md=>clean(marked.parse(md||''));
+function mmdBlock(source){
+  const d=document.createElement('div');
+  d.className='mmd';d.setAttribute('contenteditable','false');d.setAttribute('data-src',source||'');
+  const o=document.createElement('div');o.className='mmd-out';d.appendChild(o);
+  return d;
+}
+const toHTML=md=>{
+  const t=document.createElement('template');
+  if(docKind==='mmd'){t.content.appendChild(mmdBlock(md||''));return t.innerHTML}
+  t.innerHTML=clean(marked.parse(md||''));
+  if(hasMermaid)t.content.querySelectorAll('pre > code').forEach(code=>{
+    if(!/\blanguage-mermaid\b/.test(code.className||''))return;
+    code.parentElement.replaceWith(mmdBlock(code.textContent));
+  });
+  return t.innerHTML;
+};
 // Chromium zet in een <pre> een <br> per regeleinde, plus één extra voor de weergave; turndown laat <br> vallen
 function fixPre(pre){
   let txt='';
@@ -180,7 +211,10 @@ function fixPre(pre){
   const code=document.createElement('code');code.textContent=txt;
   pre.innerHTML='';pre.appendChild(code);
 }
-const toMD=()=>{const d=document.createElement('div');d.innerHTML=ed.innerHTML;d.querySelectorAll('pre').forEach(fixPre);return td.turndown(d.innerHTML).trim()+'\n'};
+const toMD=()=>{
+  if(docKind==='mmd')return src.value;
+  const d=document.createElement('div');d.innerHTML=ed.innerHTML;d.querySelectorAll('pre').forEach(fixPre);return td.turndown(d.innerHTML).trim()+'\n';
+};
 
 let mode='wysiwyg', lock=false, timer=null, blkValue='p';
 function stats(){const t=src.value.replace(/[#>*_`~\-\[\]()|!]/g,' ').trim();$('#stat').textContent=(t?t.split(/\s+/).length:0)+' woorden · '+src.value.length+' tekens'}
@@ -201,7 +235,23 @@ function fromEditor(){
   lock=false;stats();persist();
 }
 // Markdown -> editor: bij elke toetsaanslag opnieuw renderen, scrollpositie behouden
-function renderEditor(md){lock=true;const st=pe.scrollTop;ed.innerHTML=toHTML(md);mo.takeRecords();pe.scrollTop=st;lock=false}
+function renderEditor(md){lock=true;const st=pe.scrollTop;ed.innerHTML=toHTML(md);mo.takeRecords();pe.scrollTop=st;lock=false;renderMermaid()}
+// Mermaid-blokken asynchroon renderen; de SVG-tekening mag de editor niet als 'bewerkt' markeren
+let mmdSeq=0;
+async function mmdRenderInto(b){
+  if(!hasMermaid)return;
+  const out=b.querySelector('.mmd-out');if(!out)return;
+  const source=b.getAttribute('data-src')||'';
+  let html;
+  if(!source.trim())html='<div class="mmd-hint">Leeg diagram — klik om de Mermaid-bron te bewerken.</div>';
+  else{
+    try{const r=await mermaid.render('mmd-'+(++mmdSeq),source);html=r.svg}
+    catch(e){html='<div class="mmd-err">'+esc(String((e&&e.message)||e))+'</div><div class="mmd-hint">Klik om de bron te bewerken.</div>'}
+  }
+  if(!b.isConnected)return;
+  lock=true;b.setAttribute('data-rendered','1');out.innerHTML=html;mo.takeRecords();lock=false;
+}
+function renderMermaid(){ed.querySelectorAll('.mmd').forEach(b=>{if(b.getAttribute('data-rendered')!=='1')mmdRenderInto(b)})}
 function fromSource(){renderEditor(src.value);stats();persist()}
 function setMD(md){src.value=md;renderEditor(md);stats();persist()}
 src.addEventListener('input',fromSource);
@@ -215,7 +265,7 @@ function setMode(m){
   $('#ps').classList.toggle('hide',m==='wysiwyg');
   main.classList.toggle('split',m==='split');
   document.querySelectorAll('#appbar #modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
-  $('#tb').style.visibility=m==='source'?'hidden':'visible';
+  $('#tb').style.visibility=(m==='source'||docKind==='mmd')?'hidden':'visible';
   if(m==='source')src.focus(); else ed.focus();
   label();
 }
@@ -265,6 +315,29 @@ function askPrompt(message,value){
     $('#dlgCancel').onclick=()=>done(null);
     input.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();done(null)}};
   });
+}
+// Meerregelige variant voor o.a. Mermaid-bron
+function askArea(message,value){
+  return new Promise(resolve=>{
+    const dlg=$('#dlg'),input=$('#dlgInput'),area=$('#dlgArea'),form=$('#dlgForm');
+    $('#dlgLabel').textContent=message;area.value=value==null?'':value;
+    input.classList.add('hide');area.classList.add('on');
+    dlg.classList.remove('hide');area.focus();area.setSelectionRange(area.value.length,area.value.length);
+    const done=v=>{dlg.classList.add('hide');input.classList.remove('hide');area.classList.remove('on');form.onsubmit=null;$('#dlgCancel').onclick=null;area.onkeydown=null;resolve(v)};
+    form.onsubmit=e=>{e.preventDefault();done(area.value)};
+    $('#dlgCancel').onclick=()=>done(null);
+    area.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();done(null)}else if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();done(area.value)}};
+  });
+}
+// Klik op een diagram om de Mermaid-bron te bewerken
+async function editDiagram(blk){
+  if(!hasMermaid){toast('Mermaid is niet beschikbaar');return}
+  const cur=docKind==='mmd'?src.value:(blk.getAttribute('data-src')||'');
+  const v=await askArea('Mermaid-bron:',cur);
+  if(v==null)return;
+  if(docKind==='mmd'){src.value=v;renderEditor(v);stats();persist();return}
+  lock=true;blk.setAttribute('data-src',v);blk.removeAttribute('data-rendered');mo.takeRecords();lock=false;
+  mmdRenderInto(blk);fromEditor();
 }
 
 async function action(c){
@@ -349,6 +422,8 @@ ed.addEventListener('paste',e=>{
   if(h)insertHTML(clean(h)); else if(t)insertHTML(toHTML(t));
 });
 ed.addEventListener('click',e=>{
+  const mmd=e.target.closest('.mmd');
+  if(mmd){editDiagram(mmd);return}
   if(e.target.matches('input[type=checkbox]')){if(e.target.checked)e.target.setAttribute('checked','');else e.target.removeAttribute('checked');fromEditor()}
   const a=e.target.closest('a');if(a&&(e.ctrlKey||e.metaKey)){window.open(a.href,'_blank','noopener')}
 });
@@ -365,7 +440,11 @@ function label(){
   $('#auto').checked=autoSave;
 }
 function pushState(){if(isApp)native.state({path:(handle&&handle.path)||'',dirty:dirty,mode:mode,autosave:autoSave,block:blkValue})}
-function loadNative(r){handle={native:true,path:r.path};fname=r.name;setMD(r.content);dirty=false;label();toast('Geopend: '+r.name)}
+function loadNative(r){
+  docKind=/\.mmd$/i.test(r.name)?'mmd':'md';
+  handle={native:true,path:r.path};fname=r.name;setMD(r.content);dirty=false;setMode(docKind==='mmd'?'wysiwyg':mode);label();
+  toast(docKind==='mmd'?'Diagram geopend: '+r.name:'Geopend: '+r.name);
+}
 async function openPicker(){
   if(isApp){const r=await native.open();if(r)loadNative(r);return}
   try{
@@ -376,7 +455,7 @@ async function openPicker(){
   }catch(e){if(e&&e.name==='AbortError')return;toast('Directe bestandstoegang niet beschikbaar; gewone upload gebruikt');$('#file').click()}
 }
 window.addEventListener('beforeunload',e=>{if(dirty&&handle){e.preventDefault();e.returnValue=''}});
-function newDoc(){handle=null;setMD('');fname='document.md';dirty=false;label();ed.focus()}
+function newDoc(){docKind='md';handle=null;setMD('');fname='document.md';dirty=false;setMode(mode);label();ed.focus()}
 async function copyMD(){try{await navigator.clipboard.writeText(src.value);toast('Markdown gekopieerd')}catch(e){src.select();document.execCommand('copy');toast('Markdown gekopieerd')}}
 async function writeHandle(){
   if(handle.native)await native.write(handle.path,src.value);
@@ -416,6 +495,11 @@ document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){
 function toggleTheme(){
   const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme=dark?'light':'dark';
+  if(hasMermaid){
+    mermaidInit();
+    lock=true;ed.querySelectorAll('.mmd').forEach(b=>b.removeAttribute('data-rendered'));mo.takeRecords();lock=false;
+    renderMermaid();
+  }
 }
 
 // Opstartdialoog met recente bestanden
@@ -460,6 +544,17 @@ Schrijf **vet**, *cursief* of ~~doorgehaald~~ in de editor, of wissel naar de *M
 | --- | --- |
 | Een | Twee |
 
+## Diagrammen
+
+Een \`\`\`mermaid-blok wordt meteen als diagram getekend. Klik op het diagram om de bron aan te passen, of open een los \`.mmd\`-bestand.
+
+\`\`\`mermaid
+flowchart LR
+  A[Markdown] --> B{Mermaid?}
+  B -->|ja| C[Diagram]
+  B -->|nee| D[Tekst]
+\`\`\`
+
 > Alles wat je typt wordt direct als Markdown bijgehouden.
 `;
 let init=demo;try{init=localStorage.getItem('md-editor-doc')||demo}catch(e){}
@@ -493,8 +588,10 @@ if(isApp){
   $('#modes').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)});
   $('#auto').addEventListener('change',e=>{autoSave=e.target.checked;label()});
   $('#file').addEventListener('change',e=>{
-    const f=e.target.files[0];if(!f)return;fname=f.name.match(/\.(md|markdown)$/i)?f.name:f.name.replace(/\.[^.]*$/,'')+'.md';
-    const r=new FileReader();r.onload=()=>{handle=null;setMD(String(r.result));dirty=false;label();toast('Geopend: '+f.name)};r.readAsText(f);e.target.value='';
+    const f=e.target.files[0];if(!f)return;
+    docKind=/\.mmd$/i.test(f.name)?'mmd':'md';
+    fname=/\.(md|markdown|mmd)$/i.test(f.name)?f.name:f.name.replace(/\.[^.]*$/,'')+'.md';
+    const r=new FileReader();r.onload=()=>{handle=null;setMD(String(r.result));dirty=false;setMode(mode);label();toast('Geopend: '+f.name)};r.readAsText(f);e.target.value='';
   });
 }
 if(innerWidth>900)setMode('split');
